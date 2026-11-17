@@ -1,38 +1,37 @@
 # Supplier Delay Early Warning
 
-A time-ordered late-delivery classifier using order-time data only, with probability queue and chronological holdout metrics.
+A chronological research benchmark for seller shipment-deadline misses using the Olist Brazilian E-Commerce Public Dataset.
 
-> **Portfolio prototype.** Code is provided; no benchmark results are claimed until you run it on the cited data and record the output.
-
-## Use case
-
-A time-ordered late-delivery classifier using order-time data only, with probability queue and chronological holdout metrics. The command below reads a local data export, applies a transparent baseline, writes holdout or decision-support outputs, and saves the fitted model where applicable.
-
-## Data and provenance
-
-Your de-identified procurement/ERP delivery export. CSV columns for order date, promised date, actual delivery date, supplier ID, and order-time predictors. See argument defaults; dates are excluded from predictors after deriving lead time/calendar features. Dataset files are not bundled. Respect the source terms and cite the dataset when publishing results.
-
-## Quick start
+## Data and run
 
 ```bash
 python -m venv .venv
 # Windows: .venv\\Scripts\\activate
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-# Download/prepare the source data locally, then run:
-python main.py --input data/orders.csv --ordered order_date --promised promised_date --delivered actual_delivery_date --supplier supplier_id --out outputs
+python fetch_data.py
+python benchmark.py
 ```
 
-## Outputs
+The downloader uses Kaggle's public Olist dataset endpoint and extracts only order, item, and product tables. Raw records are local and excluded from Git.
 
-The `outputs/` directory contains the model-specific results (metrics and/or ranked CSV) and a serialized estimator where applicable. Outputs are reproducible with the same input, package versions, and random seed. The repository intentionally excludes downloaded data and generated artifacts.
+## Outcome definition
 
-## Evaluation and operating notes
+For delivered items with valid timestamps, the label is whether the order-level `order_delivered_carrier_date` is later than the item-level `shipping_limit_date`. The latter is the seller's shipping deadline in this dataset. The prediction point is order purchase; features include seller/product category, item price/freight, promised lead time, and purchase calendar fields.
 
-The actual delivery date defines the label and is excluded from the model. Use a chronological holdout, monitor supplier mix shifts, and never interpret a risk score as supplier fault.
+A late carrier handoff can have many causes. This is a historical deadline-miss proxy, not proof of seller fault or a causal supplier-risk estimate. Multi-item orders can repeat a shared carrier handoff event.
 
-For a production review, preserve a time-based, untouched holdout; compare against a simple business baseline; inspect calibration and subgroup error; document data lineage; and monitor drift. The included baseline is not a production service.
+## Observed benchmark
 
-## License
+The run contains 110,189 eligible delivered item rows. It uses chronological train/validation/test periods and has no order overlap across partitions. The latest holdout has 22,038 items across 19,414 orders, with an 8.2% deadline-miss rate.
 
-No code license file is included yet. Third-party datasets remain subject to their original terms.
+The logistic model achieved average precision 0.149 and ROC-AUC 0.631, only slightly above the smoothed seller-history baseline (AP 0.144, ROC-AUC 0.622). Brier score was 0.077 versus 0.076 for the baseline. At a fixed 0.5 threshold, recall was only 2.5% (46 of 1,813 misses found). This is a weak ranking signal, not a usable alert system. Full metrics and the source archive fingerprint are in `reports/benchmark.json`.
+
+## Limits
+
+The carrier handoff timestamp is order-level while deadlines are item-level, so multi-item orders may repeat the same handoff event. Only delivered orders are included; cancellations and undelivered orders are out of scope. The data cover a Brazilian marketplace from 2016–2018, so results do not establish performance for current or other supply chains. Scores do not attribute fault or evaluate an intervention.
+
+## Source
+
+Olist Brazilian E-Commerce Public Dataset: [Kaggle source](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce). Follow the dataset's terms and attribution requirements. Raw tables are not redistributed here.
+
