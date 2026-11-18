@@ -1,6 +1,11 @@
 import unittest
 
-from benchmark import blend_probabilities, capacity_metrics, metrics
+from benchmark import (
+    blend_probabilities,
+    capacity_metrics,
+    metrics,
+    paired_order_cluster_capacity_bootstrap,
+)
 
 
 class MetricTests(unittest.TestCase):
@@ -31,6 +36,31 @@ class MetricTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             capacity_metrics([0, 1], [0.1, 0.9], shares=(0,))
 
+    def test_paired_cluster_bootstrap_is_zero_for_identical_scores(self):
+        scores = [0.9, 0.2, 0.8, 0.1, 0.7, 0.3]
+        result = paired_order_cluster_capacity_bootstrap(
+            y=[1, 0, 1, 0, 0, 1],
+            model_scores=scores,
+            baseline_scores=scores,
+            order_ids=["a", "a", "b", "b", "c", "c"],
+            shares=(0.33, 0.67),
+            n_resamples=100,
+        )
+        self.assertEqual(result["cluster"], "order_id")
+        self.assertEqual(result["unique_clusters"], 3)
+        for capacity in ("33%", "67%"):
+            for metric in ("precision", "recall"):
+                effect = result["differences"][capacity][f"model_minus_baseline_{metric}"]
+                self.assertEqual(effect["estimate"], 0.0)
+                self.assertEqual(effect["ci95"], [0.0, 0.0])
+
+    def test_paired_cluster_bootstrap_rejects_missing_order_ids(self):
+        with self.assertRaises(ValueError):
+            paired_order_cluster_capacity_bootstrap(
+                y=[0, 1], model_scores=[0.1, 0.9], baseline_scores=[0.2, 0.8], order_ids=["a", None],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
+
