@@ -102,6 +102,81 @@ def capacity_metrics(y, p, shares=(0.01, 0.05, 0.10)):
     return result
 
 
+def paired_order_cluster_capacity_bootstrap(
+    y,
+    model_scores,
+    baseline_scores,
+    order_ids,
+    shares=(0.01, 0.05, 0.10),
+    *,
+    n_resamples=2000,
+    random_state=42,
+):
+    """Bootstrap paired capacity-metric differences by order, keeping items clustered."""
+    y = np.asarray(y, dtype=int)
+    model_scores = np.asarray(model_scores, dtype=float)
+    baseline_scores = np.asarray(baseline_scores, dtype=float)
+    order_ids = np.asarray(order_ids)
+    if y.ndim != 1 or not len(y) or model_scores.shape != y.shape or baseline_scores.shape != y.shape:
+        raise ValueError("labels and both score arrays must be aligned non-empty vectors")
+    if order_ids.shape != y.shape or pd.isna(order_ids).any():
+        raise ValueError("every label row must have one non-missing order id")
+    if not np.isfinite(model_scores).all() or not np.isfinite(baseline_scores).all():
+        raise ValueError("score arrays must be finite")
+    if not set(np.unique(y)).issubset({0, 1}) or y.sum() == 0:
+        raise ValueError("labels must be binary and include a positive case")
+    if n_resamples < 50:
+        raise ValueError("at least 50 cluster resamples are required")
+
+    cluster_codes, cluster_values = pd.factorize(order_ids, sort=False)
+    rows_by_cluster = [np.flatnonzero(cluster_codes == code) for code in range(len(cluster_values))]
+    baseline_metrics = capacity_metrics(y, baseline_scores, shares=shares)
+    model_metrics = capacity_metrics(y, model_scores, shares=shares)
+    samples = {
+        f"{share:.0%}": {"precision": [], "recall": []}
+        for share in shares
+    }
+    rng = np.random.default_rng(random_state)
+    valid_resamples = 0
+    for _ in range(n_resamples):
+        sampled_clusters = rng.integers(0, len(rows_by_cluster), size=len(rows_by_cluster))
+        sampled_rows = np.concatenate([rows_by_cluster[code] for code in sampled_clusters])
+        sampled_y = y[sampled_rows]
+        if sampled_y.sum() == 0:
+            continue
+        sampled_model = capacity_metrics(sampled_y, model_scores[sampled_rows], shares=shares)
+        sampled_baseline = capacity_metrics(sampled_y, baseline_scores[sampled_rows], shares=shares)
+        valid_resamples += 1
+        for share in shares:
+            key = f"{share:.0%}"
+            for measure in ("precision", "recall"):
+                samples[key][measure].append(
+                    sampled_model[key][measure] - sampled_baseline[key][measure]
+                )
+
+    if valid_resamples < 50:
+        raise ValueError("fewer than 50 valid positive-containing order-cluster resamples")
+    report = {}
+    for share in shares:
+        key = f"{share:.0%}"
+        report[key] = {}
+        for measure in ("precision", "recall"):
+            values = np.asarray(samples[key][measure], dtype=float)
+            report[key][f"model_minus_baseline_{measure}"] = {
+                "estimate": float(model_metrics[key][measure] - baseline_metrics[key][measure]),
+                "ci95": [float(value) for value in np.quantile(values, [0.025, 0.975])],
+            }
+    return {
+        "cluster": "order_id",
+        "unique_clusters": int(len(cluster_values)),
+        "requested_resamples": int(n_resamples),
+        "valid_resamples": int(valid_resamples),
+        "random_state": int(random_state),
+        "differences": report,
+        "method_note": "Paired percentile bootstrap; resample test orders with replacement and retain all their item rows.",
+    }
+
+
 def metrics(y, p):
     y = np.asarray(y)
     p = np.asarray(p, dtype=float)
@@ -197,6 +272,9 @@ def main():
             "smoothed_seller_historical_late_rate_baseline": metrics(test[TARGET], seller_baseline),
             "global_rate_baseline_average_precision": overall_rate,
         },
+        "paired_order_cluster_capacity_comparison": paired_order_cluster_capacity_bootstrap(
+            test[TARGET].to_numpy(), pred, seller_baseline, test["order_id"].to_numpy()
+        ),
         "validation_metrics": validation_metrics,
         "source_zip_sha256": hashlib.sha256(Path("data/olist.zip").read_bytes()).hexdigest(),
         "limitations": [
@@ -205,6 +283,7 @@ def main():
             "Only delivered historical orders are included; cancellations and undelivered orders are outside this estimand.",
             "This 2016-2018 Brazilian marketplace sample may not transfer to other regions, platforms, or current supply chains.",
             "The dataset has anonymized seller/order identifiers and provides no intervention or operational capacity evaluation.",
+            "Capacity-comparison intervals are paired order-cluster bootstrap intervals and are conditional on this model-selection run; they are not adjusted for trying several capacity levels.",
         ],
     }
     out = Path("reports")
@@ -215,4 +294,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
