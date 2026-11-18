@@ -33,7 +33,15 @@ Chronological validation selected a blend of 25% logistic probability (C=10) and
 | Top 5% | 21.1% / 12.8% | 22.3% / 13.6% |
 | Top 10% | 19.4% / 23.6% | 19.8% / 24.1% |
 
-The selected blend improves average precision and the top-1% slice, but it does not beat the seller-history baseline at 5% or 10% review capacity. This is not a usable alert or intervention system. No operating capacity, intervention, costs, or external retailer were validated. Full metrics and the source archive fingerprint are in `reports/benchmark.json`.
+The selected blend improves average precision and the top-1% point estimate, but capacity differences are uncertain. A paired bootstrap resampled 19,414 test orders with replacement (2,000 replicates), retaining every item row within each sampled order. The table reports blend-minus-seller-history differences in percentage points:
+
+| Review capacity | Precision difference (95% CI) | Recall difference (95% CI) |
+|---:|---:|---:|
+| 1% | +9.05 (−0.45, +10.00) | +1.10 (−0.06, +1.22) |
+| 5% | −1.27 (−2.45, −0.09) | −0.77 (−1.52, −0.05) |
+| 10% | −0.41 (−1.05, +0.50) | −0.50 (−1.28, +0.60) |
+
+At 5% capacity, the seller-history baseline performs better on this test split; at 1% and 10%, the paired interval includes zero. Intervals are conditional on the validation-selected model and are not adjusted for comparing three capacity levels. This is not a usable alert or intervention system. No operating capacity, intervention, costs, or external retailer were validated. Full metrics and the source archive fingerprint are in [reports/benchmark.json](reports/benchmark.json).
 
 ## Limits
 
