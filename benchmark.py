@@ -60,6 +60,48 @@ def pipeline(c):
     ])
 
 
+def blend_probabilities(model_probability, seller_probability, logistic_weight):
+    """Combine model and seller-history risk probabilities without thresholding."""
+    model_probability = np.asarray(model_probability, dtype=float)
+    seller_probability = np.asarray(seller_probability, dtype=float)
+    if model_probability.shape != seller_probability.shape or model_probability.ndim != 1:
+        raise ValueError("model and seller probabilities must be aligned vectors")
+    if not np.isfinite(model_probability).all() or not np.isfinite(seller_probability).all():
+        raise ValueError("probabilities must be finite")
+    if not 0 <= logistic_weight <= 1:
+        raise ValueError("logistic_weight must be in [0, 1]")
+    return logistic_weight * model_probability + (1.0 - logistic_weight) * seller_probability
+
+
+def capacity_metrics(y, p, shares=(0.01, 0.05, 0.10)):
+    """Measure a score-ranked review queue at explicit capacity shares."""
+    y = np.asarray(y, dtype=int)
+    p = np.asarray(p, dtype=float)
+    if y.ndim != 1 or p.shape != y.shape or not len(y):
+        raise ValueError("labels and probabilities must be equally sized non-empty vectors")
+    if not np.isfinite(p).all() or not set(np.unique(y)).issubset({0, 1}):
+        raise ValueError("probabilities must be finite and labels binary")
+    positives = int(y.sum())
+    if positives == 0:
+        raise ValueError("capacity recall requires at least one positive label")
+    order = np.argsort(-p, kind="stable")
+    result = {}
+    for share in shares:
+        if not 0 < share <= 1:
+            raise ValueError("capacity shares must be in (0, 1]")
+        k = max(1, int(np.ceil(len(y) * share)))
+        true_positives = int(y[order[:k]].sum())
+        precision = true_positives / k
+        result[f"{share:.0%}"] = {
+            "rows_reviewed": k,
+            "true_positives": true_positives,
+            "precision": float(precision),
+            "recall": float(true_positives / positives),
+            "lift_over_test_prevalence": float(precision / y.mean()) if y.mean() else None,
+        }
+    return result
+
+
 def metrics(y, p):
     y = np.asarray(y)
     p = np.asarray(p, dtype=float)
@@ -72,6 +114,7 @@ def metrics(y, p):
         "precision_at_0_5": float(precision_score(y, p >= 0.5, zero_division=0)),
         "recall_at_0_5": float(recall_score(y, p >= 0.5, zero_division=0)),
         "predicted_positive_at_0_5": int(pred.sum()),
+        "precision_recall_at_capacity": capacity_metrics(y, p),
         "confusion_matrix_tn_fp_fn_tp_at_0_5": [int(tn), int(fp), int(fn), int(tp)],
     }
 
@@ -87,25 +130,39 @@ def main():
         raise SystemExit("Each chronological partition must contain both label classes.")
 
     x_cols = NUMERIC + CATEGORICAL
-    chosen_c, best_ap, validation_metrics = None, -1.0, None
+    train_rate = float(train[TARGET].mean())
+    train_counts = train.groupby("seller_id")[TARGET].agg(["sum", "count"])
+    train_smooth = (train_counts["sum"] + 20 * train_rate) / (train_counts["count"] + 20)
+    validation_seller_rate = validation["seller_id"].map(train_smooth).fillna(train_rate).to_numpy()
+
+    # Select both regularization and seller/model blend weight on validation only.
+    chosen_c, chosen_logistic_weight, best_ap, validation_metrics = None, None, -1.0, None
     for c in (0.1, 1.0, 10.0):
         candidate = pipeline(c)
         candidate.fit(train[x_cols], train[TARGET])
-        p = candidate.predict_proba(validation[x_cols])[:, 1]
-        ap = average_precision_score(validation[TARGET], p)
-        if ap > best_ap:
-            chosen_c, best_ap, validation_metrics = c, float(ap), metrics(validation[TARGET], p)
+        validation_model_probability = candidate.predict_proba(validation[x_cols])[:, 1]
+        for logistic_weight in (0.0, 0.25, 0.5, 0.75, 1.0):
+            validation_score = blend_probabilities(
+                validation_model_probability, validation_seller_rate, logistic_weight
+            )
+            ap = average_precision_score(validation[TARGET], validation_score)
+            if ap > best_ap:
+                chosen_c = c
+                chosen_logistic_weight = logistic_weight
+                best_ap = float(ap)
+                validation_metrics = metrics(validation[TARGET], validation_score)
 
     development = pd.concat([train, validation], ignore_index=True)
     model = pipeline(chosen_c)
     model.fit(development[x_cols], development[TARGET])
-    pred = model.predict_proba(test[x_cols])[:, 1]
+    test_model_probability = model.predict_proba(test[x_cols])[:, 1]
 
-    # Seller-rate baseline is estimated only on the pre-test development window.
+    # Seller-rate component is estimated only on the pre-test development window.
     overall_rate = float(development[TARGET].mean())
     counts = development.groupby("seller_id")[TARGET].agg(["sum", "count"])
     smooth = (counts["sum"] + 20 * overall_rate) / (counts["count"] + 20)
     seller_baseline = test["seller_id"].map(smooth).fillna(overall_rate).to_numpy()
+    pred = blend_probabilities(test_model_probability, seller_baseline, chosen_logistic_weight)
 
     order_sets = [set(part["order_id"]) for part in (train, validation, test)]
     if any(order_sets[i] & order_sets[j] for i in range(3) for j in range(i + 1, 3)):
@@ -125,15 +182,18 @@ def main():
         },
         "label_rate": {"train": float(train[TARGET].mean()), "validation": float(validation[TARGET].mean()),
                        "test": float(test[TARGET].mean())},
-        "model": "Unweighted logistic regression; C selected on chronological validation by average precision.",
+        "model": "Chronological-validation-selected blend of logistic probability and smoothed seller late rate; selection metric is average precision.",
         "selected_C": chosen_c,
+        "selected_logistic_weight": chosen_logistic_weight,
+        "selected_seller_rate_weight": 1.0 - chosen_logistic_weight,
         "features": x_cols,
         "excluded_post_order_fields": [
             "order_delivered_carrier_date", "order_delivered_customer_date", "shipping_limit_date",
             "order_status", "order_id", "product_id", "customer_id",
         ],
         "test_metrics": {
-            "model": metrics(test[TARGET], pred),
+            "validation_selected_blend": metrics(test[TARGET], pred),
+            "logistic_model": metrics(test[TARGET], test_model_probability),
             "smoothed_seller_historical_late_rate_baseline": metrics(test[TARGET], seller_baseline),
             "global_rate_baseline_average_precision": overall_rate,
         },
