@@ -27,7 +27,7 @@
     "test": 0.08226699337507941
   },
   "model": "Chronological-validation-selected blend of logistic probability and smoothed seller late rate; selection metric is average precision.",
-  "selected_C": 10,
+  "selected_C": 10.0,
   "selected_logistic_weight": 0.25,
   "selected_seller_rate_weight": 0.75,
   "features": [
@@ -163,6 +163,64 @@
     },
     "global_rate_baseline_average_precision": 0.0959376524372951
   },
+  "paired_order_cluster_capacity_comparison": {
+    "cluster": "order_id",
+    "unique_clusters": 19414,
+    "requested_resamples": 2000,
+    "valid_resamples": 2000,
+    "random_state": 42,
+    "differences": {
+      "1%": {
+        "model_minus_baseline_precision": {
+          "estimate": 0.09049773755656107,
+          "ci95": [
+            -0.004524886877828039,
+            0.09999999999999998
+          ]
+        },
+        "model_minus_baseline_recall": {
+          "estimate": 0.011031439602868173,
+          "ci95": [
+            -0.0005500701501868269,
+            0.01224296762012825
+          ]
+        }
+      },
+      "5%": {
+        "model_minus_baseline_precision": {
+          "estimate": -0.012704174228675147,
+          "ci95": [
+            -0.02454657228017883,
+            -0.0009025270758122872
+          ]
+        },
+        "model_minus_baseline_recall": {
+          "estimate": -0.007722007722007734,
+          "ci95": [
+            -0.015184625920260946,
+            -0.0005422480783676668
+          ]
+        }
+      },
+      "10%": {
+        "model_minus_baseline_precision": {
+          "estimate": -0.004083484573502744,
+          "ci95": [
+            -0.010454783274050802,
+            0.004986457260450248
+          ]
+        },
+        "model_minus_baseline_recall": {
+          "estimate": -0.0049641478212906764,
+          "ci95": [
+            -0.012820855614973273,
+            0.006015125159317472
+          ]
+        }
+      }
+    },
+    "method_note": "Paired percentile bootstrap; resample test orders with replacement and retain all their item rows."
+  },
   "validation_metrics": {
     "average_precision": 0.17471970853425506,
     "roc_auc": 0.746995423468956,
@@ -206,6 +264,8 @@
     "A deadline miss is not a causal finding that the seller was responsible.",
     "Only delivered historical orders are included; cancellations and undelivered orders are outside this estimand.",
     "This 2016-2018 Brazilian marketplace sample may not transfer to other regions, platforms, or current supply chains.",
-    "Capacity curves are offline diagnostics only; no operator-selected review capacity, intervention, cost-sensitive utility, or retailer feedback was evaluated."
+    "The dataset has anonymized seller/order identifiers and provides no intervention or operational capacity evaluation.",
+    "Capacity-comparison intervals are paired order-cluster bootstrap intervals and are conditional on this model-selection run; they are not adjusted for trying several capacity levels."
   ]
 }
+
