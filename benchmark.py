@@ -3,6 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
@@ -60,6 +61,8 @@ def pipeline(c):
 
 
 def metrics(y, p):
+    y = np.asarray(y)
+    p = np.asarray(p, dtype=float)
     pred = p >= 0.5
     tn, fp, fn, tp = confusion_matrix(y, pred, labels=[0, 1]).ravel()
     return {
