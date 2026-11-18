@@ -25,7 +25,15 @@ A late carrier handoff can have many causes. This is a historical deadline-miss 
 
 The run contains 110,189 eligible delivered item rows. It uses chronological train/validation/test periods and has no order overlap across partitions. The latest holdout has 22,038 items across 19,414 orders, with an 8.2% deadline-miss rate.
 
-The logistic model achieved average precision 0.149 and ROC-AUC 0.631, only slightly above the smoothed seller-history baseline (AP 0.144, ROC-AUC 0.622). Brier score was 0.077 versus 0.076 for the baseline. At a fixed 0.5 threshold, recall was only 2.5% (46 of 1,813 misses found). This is a weak ranking signal, not a usable alert system. Full metrics and the source archive fingerprint are in `reports/benchmark.json`.
+Chronological validation selected a blend of 25% logistic probability (C=10) and 75% smoothed seller-history rate by average precision. On the untouched test window, the blend achieved AP 0.156, ROC-AUC 0.629, and Brier 0.0755; the seller-history baseline achieved AP 0.144, ROC-AUC 0.622, and Brier 0.0755. At the arbitrary 0.5 threshold, the blend found 40 of 1,813 misses (2.2% recall).
+
+| Review capacity | Blend precision / recall | Seller-history precision / recall |
+|---:|---:|---:|
+| Top 1% | 31.7% / 3.9% | 22.6% / 2.8% |
+| Top 5% | 21.1% / 12.8% | 22.3% / 13.6% |
+| Top 10% | 19.4% / 23.6% | 19.8% / 24.1% |
+
+The selected blend improves average precision and the top-1% slice, but it does not beat the seller-history baseline at 5% or 10% review capacity. This is not a usable alert or intervention system. No operating capacity, intervention, costs, or external retailer were validated. Full metrics and the source archive fingerprint are in `reports/benchmark.json`.
 
 ## Limits
 
