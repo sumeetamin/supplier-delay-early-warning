@@ -26,8 +26,10 @@
     "validation": 0.06116707505218259,
     "test": 0.08226699337507941
   },
-  "model": "Unweighted logistic regression; C selected on chronological validation by average precision.",
-  "selected_C": 10.0,
+  "model": "Chronological-validation-selected blend of logistic probability and smoothed seller late rate; selection metric is average precision.",
+  "selected_C": 10,
+  "selected_logistic_weight": 0.25,
+  "selected_seller_rate_weight": 0.75,
   "features": [
     "promised_lead_days",
     "price",
@@ -48,13 +50,73 @@
     "customer_id"
   ],
   "test_metrics": {
-    "model": {
+    "validation_selected_blend": {
+      "average_precision": 0.15574945309271027,
+      "roc_auc": 0.6292794860903637,
+      "brier_score": 0.07547182293927011,
+      "precision_at_0_5": 0.3508771929824561,
+      "recall_at_0_5": 0.02206287920573635,
+      "predicted_positive_at_0_5": 114,
+      "precision_recall_at_capacity": {
+        "1%": {
+          "rows_reviewed": 221,
+          "true_positives": 70,
+          "precision": 0.3167420814479638,
+          "recall": 0.03861003861003861,
+          "lift_over_test_prevalence": 3.8501720854662027
+        },
+        "5%": {
+          "rows_reviewed": 1102,
+          "true_positives": 232,
+          "precision": 0.21052631578947367,
+          "recall": 0.12796469939327082,
+          "lift_over_test_prevalence": 2.559061747031672
+        },
+        "10%": {
+          "rows_reviewed": 2204,
+          "true_positives": 428,
+          "precision": 0.19419237749546278,
+          "recall": 0.23607280750137893,
+          "lift_over_test_prevalence": 2.3605138528654215
+        }
+      },
+      "confusion_matrix_tn_fp_fn_tp_at_0_5": [
+        20151,
+        74,
+        1773,
+        40
+      ]
+    },
+    "logistic_model": {
       "average_precision": 0.14939551098091003,
       "roc_auc": 0.6312062926931372,
       "brier_score": 0.07711847496980853,
       "precision_at_0_5": 0.3108108108108108,
       "recall_at_0_5": 0.0253723110865968,
       "predicted_positive_at_0_5": 148,
+      "precision_recall_at_capacity": {
+        "1%": {
+          "rows_reviewed": 221,
+          "true_positives": 68,
+          "precision": 0.3076923076923077,
+          "recall": 0.03750689464975179,
+          "lift_over_test_prevalence": 3.7401671687385973
+        },
+        "5%": {
+          "rows_reviewed": 1102,
+          "true_positives": 229,
+          "precision": 0.20780399274047187,
+          "recall": 0.12630998345284059,
+          "lift_over_test_prevalence": 2.5259704313372966
+        },
+        "10%": {
+          "rows_reviewed": 2204,
+          "true_positives": 401,
+          "precision": 0.18194192377495463,
+          "recall": 0.2211803640375069,
+          "lift_over_test_prevalence": 2.2116029322407336
+        }
+      },
       "confusion_matrix_tn_fp_fn_tp_at_0_5": [
         20123,
         102,
@@ -69,6 +131,29 @@
       "precision_at_0_5": 0.3333333333333333,
       "recall_at_0_5": 0.018753447324875896,
       "predicted_positive_at_0_5": 102,
+      "precision_recall_at_capacity": {
+        "1%": {
+          "rows_reviewed": 221,
+          "true_positives": 50,
+          "precision": 0.22624434389140272,
+          "recall": 0.027578599007170437,
+          "lift_over_test_prevalence": 2.750122918190145
+        },
+        "5%": {
+          "rows_reviewed": 1102,
+          "true_positives": 246,
+          "precision": 0.22323049001814882,
+          "recall": 0.13568670711527855,
+          "lift_over_test_prevalence": 2.7134878869387555
+        },
+        "10%": {
+          "rows_reviewed": 2204,
+          "true_positives": 437,
+          "precision": 0.19827586206896552,
+          "recall": 0.2410369553226696,
+          "lift_over_test_prevalence": 2.410150826406984
+        }
+      },
       "confusion_matrix_tn_fp_fn_tp_at_0_5": [
         20157,
         68,
@@ -79,17 +164,40 @@
     "global_rate_baseline_average_precision": 0.0959376524372951
   },
   "validation_metrics": {
-    "average_precision": 0.16335462972211556,
-    "roc_auc": 0.7340547835577618,
-    "brier_score": 0.05871549676551596,
-    "precision_at_0_5": 0.184,
-    "recall_at_0_5": 0.03412462908011869,
-    "predicted_positive_at_0_5": 125,
+    "average_precision": 0.17471970853425506,
+    "roc_auc": 0.746995423468956,
+    "brier_score": 0.056251654992827686,
+    "precision_at_0_5": 0.1,
+    "recall_at_0_5": 0.005934718100890208,
+    "predicted_positive_at_0_5": 40,
+    "precision_recall_at_capacity": {
+      "1%": {
+        "rows_reviewed": 111,
+        "true_positives": 16,
+        "precision": 0.14414414414414414,
+        "recall": 0.02373887240356083,
+        "lift_over_test_prevalence": 2.356564279412944
+      },
+      "5%": {
+        "rows_reviewed": 551,
+        "true_positives": 162,
+        "precision": 0.294010889292196,
+        "recall": 0.2403560830860534,
+        "lift_over_test_prevalence": 4.806685443784433
+      },
+      "10%": {
+        "rows_reviewed": 1102,
+        "true_positives": 263,
+        "precision": 0.23865698729582577,
+        "recall": 0.39020771513353114,
+        "lift_over_test_prevalence": 3.9017230608497093
+      }
+    },
     "confusion_matrix_tn_fp_fn_tp_at_0_5": [
-      10243,
-      102,
-      651,
-      23
+      10309,
+      36,
+      670,
+      4
     ]
   },
   "source_zip_sha256": "967e41e04fc306fe604e2a693f488995a8b41e5047418f8a5c8e4abd6deca784",
@@ -98,7 +206,6 @@
     "A deadline miss is not a causal finding that the seller was responsible.",
     "Only delivered historical orders are included; cancellations and undelivered orders are outside this estimand.",
     "This 2016-2018 Brazilian marketplace sample may not transfer to other regions, platforms, or current supply chains.",
-    "The dataset has anonymized seller/order identifiers and provides no intervention or operational capacity evaluation."
+    "Capacity curves are offline diagnostics only; no operator-selected review capacity, intervention, cost-sensitive utility, or retailer feedback was evaluated."
   ]
 }
-
